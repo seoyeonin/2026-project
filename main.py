@@ -5,17 +5,17 @@
 - 위치별 실시간 맞춤 행동 지침 & 카드뉴스 이미지 생성 지원
 """
 
-import requests               # API 호출용
-import pandas as pd           # 표/데이터 처리용
-import numpy as np            # 숫자 계산용
-import streamlit as st        # 웹 대시보드 UI
-import plotly.express as px   # 지도 시각화용
-import json                   # GeoJSON 읽기용
-import os                     # 파일 경로 확인용
-import io                     # 이미지 메모리 버퍼 처리용
-from PIL import Image, ImageDraw, ImageFont # 카드뉴스 생성용
-from datetime import datetime # 현재 시각 표시용
-from zoneinfo import ZoneInfo # 한국 시간(Asia/Seoul) 계산용
+import requests
+import pandas as pd
+import numpy as np
+import streamlit as st
+import plotly.express as px
+import json
+import os
+import io
+from PIL import Image, ImageDraw, ImageFont
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # -------------------------------------------------------------------
 # 0. 페이지 기본 설정
@@ -24,6 +24,7 @@ st.set_page_config(
     page_title="서울시 권역별 실시간 대기환경 대시보드",
     page_icon="🌫️",
     layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # -------------------------------------------------------------------
@@ -78,10 +79,13 @@ def generate_card_news(station_name, sarea_name, pm10, fpm, ozon, cai, cai_grd):
     image = Image.new("RGB", (width, height), "#F8FAFC")
     draw = ImageDraw.Draw(image)
 
+    # OS별 대표 한글 폰트 경로 목록
     font_paths = [
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
         "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+        "/usr/share/fonts/truetype/nanum/NanumBarunGothic.ttf",
         "C:/Windows/Fonts/malgun.ttf",
+        "/System/Library/Fonts/Supplemental/AppleGothic.ttf",
     ]
     
     selected_font_path = None
@@ -94,7 +98,7 @@ def generate_card_news(station_name, sarea_name, pm10, fpm, ozon, cai, cai_grd):
         if selected_font_path:
             try:
                 return ImageFont.truetype(selected_font_path, size)
-            except:
+            except Exception:
                 pass
         return ImageFont.load_default()
 
@@ -110,7 +114,7 @@ def generate_card_news(station_name, sarea_name, pm10, fpm, ozon, cai, cai_grd):
     draw.rounded_rectangle([40, 40, 1040, 180], radius=24, fill="#0F172A")
     draw.text((80, 65), "SEOUL AIR QUALITY DAILY REPORT", font=font_subtitle, fill="#38BDF8")
     draw.text((80, 105), "오늘의 서울시 대기환경 & 액션 플랜", font=font_title, fill="#FFFFFF")
-    draw.text((750, 110), f"{station_name} ({sarea_name})", font=font_card_title, fill="#E2E8F0")
+    draw.text((720, 110), f"{station_name} ({sarea_name})", font=font_card_title, fill="#E2E8F0")
 
     # 2) 수치 카드 (2x2)
     pm10_val_str = f"{pm10:.0f} ug/m3" if pd.notnull(pm10) else "-"
@@ -264,7 +268,7 @@ st.title("🌫️ 서울시 권역별 실시간 대기환경정보 대시보드"
 st.caption(f"데이터 출처: 서울 열린데이터광장 OpenAPI · 기준 시각(KST): {now_kst.strftime('%Y년 %m월 %d일 %H시 %M분 %S초')}")
 
 if not api_key:
-    st.error("❌ 인증키를 찾을 수 없습니다. Streamlit Cloud의 Settings → Secrets 메뉴에서 SEOUL_KEY를 등록하세요.")
+    st.error("❌ 인증키를 찾을 수 없습니다. Streamlit Cloud의 Settings → Secrets 메뉴에서 SEOUL_KEY를 등록하거나 `.streamlit/secrets.toml` 파일에 설정하세요.")
     st.stop()
 
 if refresh_clicked:
