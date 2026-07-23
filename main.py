@@ -428,3 +428,153 @@ with tab2:
         st.info("측정소 데이터를 불러올 수 없습니다. 사이드바의 조회 조건을 확인해 주세요.")
 
 st.caption("본 데이터 및 행동 지침은 참고용이며, 정확한 상황은 환경부 및 서울시 공식 발표를 확인해 주세요.")
+
+import io
+from PIL import Image, ImageDraw, ImageFont
+
+def generate_card_news(station_name, sarea_name, pm10, fpm, ozon, cai, cai_grd):
+    """
+    실시간 대기 지수를 바탕으로 1080x1080 정사각형 SNS 카드뉴스 이미지를 생성하는 함수
+    """
+    width, height = 1080, 1080
+    image = Image.new("RGB", (width, height), "#F8FAFC")
+    draw = ImageDraw.Draw(image)
+
+    # Linux / Streamlit Cloud 한글 폰트 경로 폰트 로드 (시스템 폰트 또는 기본 폰트)
+    font_paths = [
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+        "C:/Windows/Fonts/malgun.ttf", # 윈도우 지원
+    ]
+    
+    selected_font_path = None
+    for fp in font_paths:
+        if os.path.exists(fp):
+            selected_font_path = fp
+            break
+
+    def get_font(size):
+        if selected_font_path:
+            try:
+                return ImageFont.truetype(selected_font_path, size)
+            except:
+                pass
+        return ImageFont.load_default()
+
+    font_title = get_font(42)
+    font_subtitle = get_font(24)
+    font_card_title = get_font(24)
+    font_val = get_font(46)
+    font_status = get_font(22)
+    font_body = get_font(22)
+    font_small = get_font(20)
+
+    # 1) 헤더 배너
+    draw.rounded_rectangle([40, 40, 1040, 180], radius=24, fill="#0F172A")
+    draw.text((80, 65), "SEOUL AIR QUALITY DAILY REPORT", font=font_subtitle, fill="#38BDF8")
+    draw.text((80, 105), "오늘의 서울시 대기환경 & 액션 플랜", font=font_title, fill="#FFFFFF")
+    draw.text((750, 110), f"{station_name} ({sarea_name})", font=font_card_title, fill="#E2E8F0")
+
+    # 2) 주요 수치 카드 (2x2 그리드)
+    # PM10
+    pm10_val_str = f"{pm10:.0f} ug/m3" if pd.notnull(pm10) else "-"
+    pm10_status = "나쁨" if pm10 > 80 else ("보통" if pm10 > 30 else "좋음")
+    pm10_color = "#EF4444" if pm10 > 80 else ("#3B82F6" if pm10 > 30 else "#10B981")
+    
+    draw.rounded_rectangle([40, 210, 525, 380], radius=20, fill="#FFFFFF", outline="#E2E8F0", width=2)
+    draw.text((70, 235), "미세먼지 (PM10)", font=font_card_title, fill="#64748B")
+    draw.text((70, 280), pm10_val_str, font=font_val, fill="#0F172A")
+    draw.rounded_rectangle([370, 235, 495, 275], radius=12, fill=pm10_color)
+    draw.text((400, 243), pm10_status, font=font_status, fill="#FFFFFF")
+
+    # PM2.5
+    fpm_val_str = f"{fpm:.0f} ug/m3" if pd.notnull(fpm) else "-"
+    fpm_status = "나쁨" if fpm > 35 else ("보통" if fpm > 15 else "좋음")
+    fpm_color = "#EF4444" if fpm > 35 else ("#3B82F6" if fpm > 15 else "#10B981")
+
+    draw.rounded_rectangle([555, 210, 1040, 380], radius=20, fill="#FFFFFF", outline="#E2E8F0", width=2)
+    draw.text((585, 235), "초미세먼지 (PM2.5)", font=font_card_title, fill="#64748B")
+    draw.text((585, 280), fpm_val_str, font=font_val, fill="#0F172A")
+    draw.rounded_rectangle([885, 235, 1010, 275], radius=12, fill=fpm_color)
+    draw.text((915, 243), fpm_status, font=font_status, fill="#FFFFFF")
+
+    # O3
+    ozon_val_str = f"{ozon:.3f} ppm" if pd.notnull(ozon) else "-"
+    ozon_status = "주의" if ozon >= 0.091 else "좋음"
+    ozon_color = "#EF4444" if ozon >= 0.091 else "#10B981"
+
+    draw.rounded_rectangle([40, 400, 525, 570], radius=20, fill="#FFFFFF", outline="#E2E8F0", width=2)
+    draw.text((70, 425), "오존 (O3)", font=font_card_title, fill="#64748B")
+    draw.text((70, 470), ozon_val_str, font=font_val, fill="#0F172A")
+    draw.rounded_rectangle([370, 425, 495, 465], radius=12, fill=ozon_color)
+    draw.text((400, 433), ozon_status, font=font_status, fill="#FFFFFF")
+
+    # CAI
+    cai_val_str = f"{cai:.0f} 점" if pd.notnull(cai) else "-"
+    cai_color = "#EF4444" if cai > 100 else ("#3B82F6" if cai > 50 else "#10B981")
+
+    draw.rounded_rectangle([555, 400, 1040, 570], radius=20, fill="#FFFFFF", outline="#E2E8F0", width=2)
+    draw.text((585, 425), "통합대기환경지수 (CAI)", font=font_card_title, fill="#64748B")
+    draw.text((585, 470), cai_val_str, font=font_val, fill="#0F172A")
+    draw.rounded_rectangle([885, 425, 1010, 465], radius=12, fill=cai_color)
+    draw.text((915, 433), str(cai_grd), font=font_status, fill="#FFFFFF")
+
+    # 3) 추천 액션 플랜 섹션
+    draw.text((40, 605), "오늘의 추천 액션 플랜 (Action Plan)", font=font_card_title, fill="#0F172A")
+
+    # 마스크 수칙
+    mask_txt = "외출 시 KF94/80 보건용 마스크를 착용하세요." if (pm10 > 80 or fpm > 35) else "대기 상태 양호! 마스크 없이 일상 활동 가능합니다."
+    draw.rounded_rectangle([40, 650, 1040, 735], radius=16, fill="#EFF6FF", outline="#BFDBFE", width=1)
+    draw.text((65, 675), "[마스크 수칙]", font=font_card_title, fill="#1E40AF")
+    draw.text((230, 677), mask_txt, font=font_body, fill="#1E293B")
+
+    # 환기 수칙
+    vent_txt = "창문을 열고 10분 이상 실내 환기를 시켜주세요." if pm10 <= 80 else "대기질이 나쁘므로 창문을 닫고 공기청정기를 가동하세요."
+    draw.rounded_rectangle([40, 755, 1040, 840], radius=16, fill="#ECFDF5", outline="#A7F3D0", width=1)
+    draw.text((65, 780), "[실내 환기]", font=font_card_title, fill="#065F46")
+    draw.text((230, 782), vent_txt, font=font_body, fill="#1E293B")
+
+    # 야외/선크림 수칙
+    uv_txt = "야외 운동 추천! 외출 시 SPF30+ 선크림과 모자를 챙기세요." if ozon < 0.091 else "오존 농도가 높습니다. 한낮 야외활동을 자제하세요."
+    draw.rounded_rectangle([40, 860, 1040, 945], radius=16, fill="#FFFBEB", outline="#FDE68A", width=1)
+    draw.text((65, 885), "[야외/선크림]", font=font_card_title, fill="#92400E")
+    draw.text((230, 887), uv_txt, font=font_body, fill="#1E293B")
+
+    # 푸터
+    draw.text((40, 990), "데이터 출처: 서울 열린데이터광장 OpenAPI | 실시간 업데이트 (KST)", font=font_small, fill="#94A3B8")
+    draw.text((780, 990), "2026 AIR DASHBOARD", font=font_small, fill="#64748B")
+
+    # BytesIO 객체로 반환 (파일 저장 없이 메모리 전달)
+    img_byte_arr = io.BytesIO()
+    image.save(img_byte_arr, format="PNG")
+    return img_byte_arr.getvalue()
+# ---------------------------------------------------------------
+        # [SNS 공유 기능] 카드뉴스 이미지 생성 & 다운로드
+        # ---------------------------------------------------------------
+        st.markdown("---")
+        st.subheader("📸 SNS 공유용 카드뉴스 생성")
+        st.write("오늘의 대기 수치와 액션 플랜을 한눈에 보는 요약 이미지로 생성합니다.")
+
+        if st.button("✨ 실시간 카드뉴스 만들기", use_container_width=True):
+            with st.spinner("깔끔한 카드뉴스 이미지를 생성하고 있습니다..."):
+                card_img_bytes = generate_card_news(
+                    station_name=selected_station,
+                    sarea_name=curr_sarea,
+                    pm10=curr_pm,
+                    fpm=curr_fpm,
+                    ozon=curr_ozon,
+                    cai=curr_cai,
+                    cai_grd=curr_grd
+                )
+                
+                # 이미지 생성 결과 미리보기
+                st.image(card_img_bytes, caption=f"[{selected_station}] 실시간 대기 상태 카드뉴스", use_container_width=True)
+                
+                # 다운로드 버튼
+                st.download_button(
+                    label="💾 카카오톡 / 인스타그램 공유용 이미지 다운로드",
+                    data=card_img_bytes,
+                    file_name=f"서울시_대기환경_카드뉴스_{selected_station}.png",
+                    mime="image/png",
+                    use_container_width=True
+                )
